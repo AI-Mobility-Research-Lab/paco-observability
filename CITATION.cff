@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use PACO, please cite the software and the accompanying article."
+title: "PACO observability analysis"
+type: software
+version: 1.0.0
+date-released: 2026-08-03
+authors:
+  - family-names: Shang
+    given-names: Bo
+    orcid: "https://orcid.org/0000-0002-5568-1566"
+  - family-names: Li
+    given-names: Yiqiao
+    orcid: "https://orcid.org/0000-0002-2656-9217"
+repository-code: "https://github.com/AI-Mobility-Research-Lab/paco-observability"
+license: MIT
+keywords:
+  - cooperative perception
+  - roadside LiDAR
+  - geometric observability
+  - occlusion
+  - vehicle-to-infrastructure
+

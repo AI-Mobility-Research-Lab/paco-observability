@@ -1,0 +1,31 @@
+{
+  "title": "PACO observability analysis",
+  "description": "Software release for PACO, a geometry-based framework for auditing field-of-view, range, and occlusion limits of modeled onboard perception using roadside-LiDAR trajectories.",
+  "upload_type": "software",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Shang, Bo",
+      "orcid": "0000-0002-5568-1566"
+    },
+    {
+      "name": "Li, Yiqiao",
+      "orcid": "0000-0002-2656-9217"
+    }
+  ],
+  "keywords": [
+    "cooperative perception",
+    "roadside LiDAR",
+    "geometric observability",
+    "occlusion",
+    "vehicle-to-infrastructure"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.7910/DVN/7T4DWL",
+      "relation": "isSupplementTo",
+      "scheme": "doi"
+    }
+  ]
+}
+
