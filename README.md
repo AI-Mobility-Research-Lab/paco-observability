@@ -18,9 +18,12 @@ PACO v1.1 starts from a trajectory table that passes the fail-closed provenance
 gate. No final v1.1 result values are asserted in this repository documentation;
 they must come from a frozen, manifested run.
 
-The machine-readable preregistration intent is recorded in
-[`configs/cacie_v1.1.json`](configs/cacie_v1.1.json). Null result hashes in that
-file remain null until the canonical run is frozen.
+The frozen machine-readable analysis protocol and run configuration are recorded
+in [`configs/cacie_v1.1.json`](configs/cacie_v1.1.json). This is not a claim of
+preregistration: the 3-of-15 sparse threshold and its deterministic split were
+introduced as a post-development calibration after the any-ray diagnostic was
+found to be optimistic. Null result hashes remain null until the canonical run
+is frozen.
 
 ## CACIE pipeline
 
@@ -28,10 +31,23 @@ file remain null until the canonical run is frozen.
 |---|---|---|
 | Input provenance gate | `scripts/audit_input_provenance.py` | Audit the 3-D box schema and write an input/code manifest |
 | Geometric validation | `scripts/validate_occlusion_models.py` | Compare low-cost models with ray--oriented-box references |
+| Sparse-rule calibration | `scripts/calibrate_sparse_threshold.py` | Select the 15-ray decision threshold on 100 frames and evaluate it on 100 disjoint frames |
 | Validation figure | `scripts/generate_cacie_validation_figure.py` | Plot only source-backed validation summaries |
-| Full-record sweep | `scripts/parametric_ego_sweep.py` | Produce full-record low-cost observability outputs on gate-passed inputs |
+| Full-record sweep | `scripts/compute_full_record_observability.py` | Stream full-record low-cost observability counts on gate-passed inputs |
 | Dependence-aware inference | `scripts/bootstrap_observability.py` | Apply grouped circular moving-block bootstrap inference |
-| Residual demand and illustrative coverage | `scripts/optimize_external_coverage.py` | Evaluate finite hypothetical viewpoints and greedy coverage |
+| Residual-demand ranking | `scripts/rank_residual_demand.py` | Bootstrap hotspot ranks over the fixed 60-position ego grid |
+| Declared sensitivities | `scripts/bootstrap_block_sensitivity.py`, `scripts/summarize_cacie_sensitivities.py` | Audit block duration, vertical coordinates, decimation, and partial scans |
+| Source-backed figures | `scripts/generate_cacie_validation_figure.py`, `scripts/generate_cacie_full_results_figure.py` | Plot only validated canonical artifacts |
+| Immutable notebook audit | `notebooks/cacie_validation.ipynb`, `scripts/audit_cacie_notebook.py` | Execute to a separate output notebook and bind its unique PASS marker to current artifact hashes |
+| Release inventory | `scripts/build_release_artifact_manifest.py` | Require clean Git, archive producing code/docs and detector evidence, and hash every input twice |
+
+The fail-closed end-to-end entry point is `bash scripts/run_canonical.sh`.
+In release mode, run it from a committed, clean worktree. The frozen config
+must contain `release.numeric_producer_commit` and
+`release.numeric_producer_files`; every declared current producer must be
+byte-identical to that Git commit. The separately declared historical
+full-record entrypoint is verified against its Git blob without rewriting the
+newer guarded file or the older input-provenance record.
 
 The exact ray--oriented-box calculation is an exact geometric reference only
 within the supplied oriented-box scene abstraction. It is not physical
@@ -83,11 +99,17 @@ Do not use `--allow-quality-fail` for paper-facing computation. See
 ## Validation protocol
 
 The frozen design uses a 0.25-degree low-cost angular resolution and
-deterministic seed `20260902`. It compares a 15-ray sparse surrogate with 9 x 9,
-17 x 17, and 33 x 33 projected grids on the main validation sample, uses
+deterministic seed `20260902`. The 15-ray surrogate is calibrated on 100 frames
+and evaluated once on a disjoint 100-frame subset; its rule requires at least 3
+of 15 rays to be clear. This threshold selection is explicitly post-development,
+not preregistered. It is compared with 9 x 9, 17 x 17, and 33 x 33 projected
+grids on the main validation sample, uses
 33 x 33 as the primary within-abstraction reference, and runs a separate
-17 x 17/33 x 33/65 x 65 convergence check on a frozen 25-frame sample.
-Full-record uncertainty uses a 120-second circular moving block. The complete
+17 x 17/33 x 33/65 x 65 convergence check on a frozen 25-frame subset of the
+200 main validation frames (not an independent sample).
+Full-record uncertainty uses circular moving blocks of 1,200 consecutive
+retained-frame observations (nominally 120 seconds at 10 Hz; source-index gaps
+can extend the elapsed span). The complete
 design and interpretation guardrails are in
 [docs/CACIE_VALIDATION_PROTOCOL.md](docs/CACIE_VALIDATION_PROTOCOL.md).
 

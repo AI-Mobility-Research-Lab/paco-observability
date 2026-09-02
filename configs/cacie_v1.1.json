@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "analysis_status": "pre-freeze: tracks and result hashes are populated after the canonical run",
+  "analysis_status": "completed and frozen 2026-09-02; canonical bytes are inventoried by outputs/cacie_v1.1_release_manifest.json",
   "seed": 20260902,
   "upstream": {
     "run_id": "run-cacie-canonical-full-20260902",
@@ -15,7 +15,9 @@
       "method": "sort_bev",
       "reference": "center",
       "max_distance_m": 6.0,
-      "max_age_frames": 3
+      "max_age_frames": 3,
+      "provenance_authority": "upstream manifest top-level tracking_method and parameters written by the track-producing stage",
+      "manifest_ambiguity_note": "upstream_manifest.effective_run_config.tracking.track_method=bev_iou_hungarian_baseline is the earlier orchestration default; it was superseded by the separately executed track stage, whose top-level manifest record and output parameters identify sort_bev"
     },
     "tracks_sha256": "f8f4e3adc69d54c3c08adfebd5040beef154a50c885df211d5779dc68c20e8b6",
     "frame_index_sha256": "bba857305d36b6a1833a1f89d91d520bade77ac4b02b1577fd8960558c88cfd4",
@@ -24,7 +26,7 @@
     "tracked_frames": 40794
   },
   "source_quality_exclusions": {
-    "policy": "num_points / median(num_points in the preceding and following 3 frames) < 0.6",
+    "policy": "num_points / median(num_points in the available preceding and following 3 source rows) < 0.6; boundary frames use only available neighbors",
     "timestamp_zero_is_not_an_exclusion_criterion": true,
     "neighbor_radius_frames": 3,
     "point_count_ratio_threshold": 0.6,
@@ -51,6 +53,7 @@
   },
   "ground_plane": {
     "equation": "normal dot point + d = 0",
+    "coordinate_frame": "canonical aligned trajectory frame used by tracks.parquet",
     "normal": [
       -0.0015611966,
       -0.0601932594,
@@ -138,6 +141,7 @@
     "primary_reference_grid": [33, 33],
     "primary_grid_comparison": [9, 17, 33],
     "convergence_frames": 25,
+    "convergence_sample_relationship": "deterministic 25-frame subset of the 200 main validation frames; not an independent sample",
     "convergence_grids": [17, 33, 65],
     "visible_fraction_sensitivity": [0.0, 0.01, 0.05, 0.1]
   },
@@ -161,5 +165,29 @@
     },
     "finite_candidate_coverage_status": "illustrative only; no surveyed poles or static-scene mesh",
     "theoretical_ceiling_guardrail": "not operational V2I performance"
+  },
+  "release": {
+    "numeric_producer_commit": "721584e53ed79dbe14af268adbf941e689ea0cb3",
+    "numeric_producer_files": [
+      "src/paco_observability/geometry.py",
+      "src/paco_observability/legacy.py",
+      "src/paco_observability/metrics.py",
+      "src/paco_observability/occlusion.py",
+      "src/paco_observability/validation.py",
+      "src/paco_observability/full_record.py",
+      "src/paco_observability/sparse_calibration.py",
+      "src/paco_observability/provenance.py",
+      "scripts/validate_occlusion_models.py",
+      "scripts/calibrate_sparse_threshold.py"
+    ],
+    "historical_full_record_entrypoint": {
+      "path": "scripts/compute_full_record_observability.py",
+      "commit": "721584e53ed79dbe14af268adbf941e689ea0cb3",
+      "git_blob_sha1": "6f66d9d7a844e60830870155d4194fbd6f45b7c5",
+      "sha256": "acc8830ac7b76042efc1e2a1208002093a3504de63a6f0d716384cac677a76aa",
+      "current_difference_scope": "completion-marker invalidation only; numerical algorithms are unchanged"
+    },
+    "runtime_provenance_policy": "validation receipts truthfully retain producer commit 721584e and dirty=true at post-run capture; the 3680 full-record receipt truthfully records a no-git source copy with the same declared but locally unverified commit; byte-exact source/artifact lineage receipts and the clean release manifest close the chain without rewriting historical receipts",
+    "release_manifest": "outputs/cacie_v1.1_release_manifest.json"
   }
 }

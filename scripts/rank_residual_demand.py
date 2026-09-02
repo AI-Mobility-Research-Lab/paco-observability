@@ -19,12 +19,21 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Sequence
+import uuid
 
 import numpy as np
 import pandas as pd
 
+from paco_observability.cacie_source_contract import (
+    EXPECTED_EGO_COUNT,
+    attach_source_contract,
+    require_cacie_full_record_source_unchanged,
+    snapshot_cacie_full_record_source,
+    validate_cacie_full_record_source,
+)
 from paco_observability.optimization import bootstrap_hotspot_rank_stability
 
 
@@ -527,6 +536,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument(
+        "--source-summary",
+        type=Path,
+        required=True,
+        help="Completed full_record_summary.json that produced --input",
+    )
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--fov-deg", type=float, nargs="+", default=DEFAULT_FOVS)
     parser.add_argument("--block-width-frames", type=int, default=DEFAULT_BLOCK_WIDTH_FRAMES)
@@ -555,7 +570,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit("--summary-name must be a file name, not a path")
     if Path(args.ranking_name).name != args.ranking_name:
         raise SystemExit("--ranking-name must be a file name, not a path")
+    if args.expected_ego_count != EXPECTED_EGO_COUNT:
+        raise SystemExit(
+            f"canonical rank CLI requires --expected-ego-count {EXPECTED_EGO_COUNT}"
+        )
+    source_snapshot = snapshot_cacie_full_record_source(args.input, args.source_summary)
     data = pd.read_parquet(args.input)
+    source_contract = validate_cacie_full_record_source(
+        args.input,
+        args.source_summary,
+        data,
+        source_snapshot=source_snapshot,
+        table_kind="counts",
+        allowed_frame_steps=(1,),
+        expected_ego_count=EXPECTED_EGO_COUNT,
+    )
     summary, rankings = rank_residual_demand(
         data,
         fov_degrees=args.fov_deg,
@@ -571,16 +600,32 @@ def main(argv: Sequence[str] | None = None) -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     summary_path = args.out_dir / args.summary_name
     ranking_path = args.out_dir / args.ranking_name
-    rankings.to_parquet(ranking_path, index=False)
+    token = uuid.uuid4().hex
+    temporary_summary = summary_path.with_name(f".{summary_path.name}.{token}.tmp")
+    temporary_ranking = ranking_path.with_name(f".{ranking_path.name}.{token}.tmp")
     summary["input_parquet"] = str(args.input.resolve())
+    attach_source_contract(summary, source_contract)
     summary["outputs"] = {
         "summary_json": str(summary_path.resolve()),
         "ranking_parquet": str(ranking_path.resolve()),
     }
-    summary_path.write_text(
-        json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        rankings.to_parquet(temporary_ranking, index=False)
+        temporary_summary.write_text(
+            json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
+        require_cacie_full_record_source_unchanged(
+            source_snapshot,
+            args.input,
+            args.source_summary,
+        )
+        # Publish the summary only after its companion ranking table is final.
+        os.replace(temporary_ranking, ranking_path)
+        os.replace(temporary_summary, summary_path)
+    finally:
+        temporary_ranking.unlink(missing_ok=True)
+        temporary_summary.unlink(missing_ok=True)
     print(f"wrote {summary_path}")
     print(f"wrote {ranking_path}")
 

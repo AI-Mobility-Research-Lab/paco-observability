@@ -133,7 +133,9 @@ def test_equal_scores_have_stable_ego_id_order_and_top_k_probability() -> None:
         assert mode.loc["B", "top_k_probability"] == pytest.approx(0.0)
 
 
-def test_cli_writes_both_demand_modes_and_fovs_with_guardrail(tmp_path) -> None:
+def test_cli_writes_both_demand_modes_and_fovs_with_guardrail(
+    tmp_path, stub_cacie_source_validator, monkeypatch
+) -> None:
     rows: list[dict[str, object]] = []
     for fov in (120.0, 360.0):
         for frame in range(4):
@@ -160,13 +162,19 @@ def test_cli_writes_both_demand_modes_and_fovs_with_guardrail(tmp_path) -> None:
                 ]
             )
     input_path = tmp_path / "full_record_observability.parquet"
+    source_summary_path = tmp_path / "full_record_summary.json"
     out_dir = tmp_path / "ranks"
     pd.DataFrame(rows).to_parquet(input_path, index=False)
+    source_summary_path.write_text("{}\n", encoding="utf-8")
+    stub_cacie_source_validator(_SCRIPT)
+    monkeypatch.setattr(_SCRIPT, "EXPECTED_EGO_COUNT", 2)
 
     main(
         [
             "--input",
             str(input_path),
+            "--source-summary",
+            str(source_summary_path),
             "--out-dir",
             str(out_dir),
             "--block-width-frames",
@@ -184,6 +192,8 @@ def test_cli_writes_both_demand_modes_and_fovs_with_guardrail(tmp_path) -> None:
 
     summary = json.loads((out_dir / "residual_hotspot_ranks.json").read_text())
     ranking = pd.read_parquet(out_dir / "residual_hotspot_ranks.parquet")
+    assert summary["source_input_sha256"] == "c" * 64
+    assert summary["source_contract"]["table_kind"] == "counts"
     assert summary["scope"]["primary_demand_mode"] == "uniform"
     assert summary["scope"]["sensitivity_demand_mode"] == "vru_weighted"
     assert len(summary["fov_results"]) == 4

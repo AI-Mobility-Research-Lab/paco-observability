@@ -298,6 +298,24 @@ def _temporary_paths(out_dir: Path) -> tuple[dict[str, Path], dict[str, Path]]:
     return final, temporary
 
 
+def _invalidate_existing_completion_marker(summary_path: Path) -> Path | None:
+    """Atomically quarantine an old completion marker before an overwrite run.
+
+    A failed or interrupted overwrite must not leave the previous summary at the
+    canonical path, where it could be mistaken for proof that the newly replaced
+    Parquet files form a complete run.  The stale copy is kept until the new
+    summary is published successfully.
+    """
+
+    if not summary_path.exists():
+        return None
+    stale_path = summary_path.with_name(
+        f"{summary_path.name}.{uuid.uuid4().hex}.stale"
+    )
+    os.replace(summary_path, stale_path)
+    return stale_path
+
+
 def _schema_with_run_metadata(
     schema: pa.Schema,
     *,
@@ -421,6 +439,11 @@ def main() -> None:
     if existing and not args.overwrite:
         names = ", ".join(str(path) for path in existing)
         raise SystemExit(f"refusing to overwrite existing outputs: {names}")
+    stale_summary = (
+        _invalidate_existing_completion_marker(final_paths["summary"])
+        if args.overwrite
+        else None
+    )
 
     writers: dict[str, BufferedParquetWriter] = {}
     schema_arguments = {
@@ -588,6 +611,9 @@ def main() -> None:
             with suppress(FileNotFoundError):
                 path.unlink()
         raise
+    if stale_summary is not None:
+        with suppress(FileNotFoundError):
+            stale_summary.unlink()
 
     print(json.dumps(summary["groups"], indent=2), flush=True)
     print(f"wrote {args.out_dir} in {summary['runtime']['wall_elapsed_s']:.1f}s", flush=True)

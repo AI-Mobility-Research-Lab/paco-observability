@@ -11,9 +11,11 @@ The estimand is always a ratio of sums::
     sum(frame numerator) / sum(frame denominator)
 
 It is deliberately not the unweighted mean of per-frame ratios. By default the
-script uses a circular 1,200-frame block (120 seconds at 10 Hz), 5,000
-replicates, and a fixed seed. The paired FOV contrast is ``360 - 120`` and uses
-identical frame-aligned blocks for both FOVs.
+script uses a circular block of 1,200 consecutive retained-frame observations
+(nominally about 120 seconds at 10 Hz), 5,000 replicates, and a fixed seed.
+Declared missing and quality-excluded frames can make the covered source-index
+span slightly longer than that nominal duration. The paired FOV contrast is
+``360 - 120`` and uses identical frame-aligned blocks for both FOVs.
 """
 
 from __future__ import annotations
@@ -21,8 +23,10 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Sequence
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -30,6 +34,13 @@ import pandas as pd
 from paco_observability.bootstrap import (
     moving_block_bootstrap_ratio,
     paired_moving_block_bootstrap_ratio,
+)
+from paco_observability.cacie_source_contract import (
+    attach_source_contract,
+    require_cacie_full_record_source_unchanged,
+    require_effective_frame_rate,
+    snapshot_cacie_full_record_source,
+    validate_cacie_full_record_source,
 )
 
 
@@ -458,7 +469,12 @@ def bootstrap_observability_table(
         },
         "bootstrap": {
             "unit": "frame",
+            "frame_unit_semantics": "consecutive retained-frame observation",
             "time_order": "ascending observed frame label",
+            "duration_interpretation": (
+                "nominal seconds computed from consecutive retained-frame observations; "
+                "declared source-frame gaps can extend the source-index span"
+            ),
             "method": "circular moving block" if bool(circular) else "moving block",
             "circular": bool(circular),
             "frame_rate_hz": float(frame_rate_hz),
@@ -503,6 +519,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True, help="Full-record Parquet table")
+    parser.add_argument(
+        "--source-summary",
+        type=Path,
+        required=True,
+        help="Completed full_record_summary.json that produced --input",
+    )
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--summary-name", default=DEFAULT_SUMMARY_NAME)
     parser.add_argument("--replicates-name", default=DEFAULT_REPLICATES_NAME)
@@ -543,7 +565,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     if Path(args.replicates_name).name != args.replicates_name:
         raise SystemExit("--replicates-name must be a file name, not a path")
 
+    source_snapshot = snapshot_cacie_full_record_source(args.input, args.source_summary)
     data = pd.read_parquet(args.input)
+    source_contract = validate_cacie_full_record_source(
+        args.input,
+        args.source_summary,
+        data,
+        source_snapshot=source_snapshot,
+        table_kind="contributions",
+        allowed_frame_steps=(1, 10),
+        frame_column=args.frame_column,
+        z_mode_column=args.z_mode_column,
+        fov_column=args.fov_column,
+        method_column=args.method_column,
+    )
+    require_effective_frame_rate(args.frame_rate_hz, source_contract)
     paired_fovs = None if args.no_paired_fov_delta else tuple(args.paired_fovs)
     summary, replicates = bootstrap_observability_table(
         data,
@@ -566,16 +602,35 @@ def main(argv: Sequence[str] | None = None) -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     summary_path = args.out_dir / args.summary_name
     replicates_path = args.out_dir / args.replicates_name
-    replicates.to_parquet(replicates_path, index=False)
+    token = uuid.uuid4().hex
+    temporary_summary = summary_path.with_name(f".{summary_path.name}.{token}.tmp")
+    temporary_replicates = replicates_path.with_name(
+        f".{replicates_path.name}.{token}.tmp"
+    )
     summary["input_parquet"] = str(args.input.resolve())
+    attach_source_contract(summary, source_contract)
     summary["outputs"] = {
         "summary_json": str(summary_path.resolve()),
         "replicates_parquet": str(replicates_path.resolve()),
     }
-    summary_path.write_text(
-        json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        replicates.to_parquet(temporary_replicates, index=False)
+        temporary_summary.write_text(
+            json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
+        require_cacie_full_record_source_unchanged(
+            source_snapshot,
+            args.input,
+            args.source_summary,
+        )
+        # The JSON summary is the completion marker and is therefore published
+        # after the Parquet replicates.
+        os.replace(temporary_replicates, replicates_path)
+        os.replace(temporary_summary, summary_path)
+    finally:
+        temporary_replicates.unlink(missing_ok=True)
+        temporary_summary.unlink(missing_ok=True)
     print(f"wrote {summary_path}")
     print(f"wrote {replicates_path}")
 

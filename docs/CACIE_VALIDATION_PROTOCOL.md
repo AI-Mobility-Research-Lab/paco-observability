@@ -2,10 +2,14 @@
 
 ## Purpose and claim boundary
 
-This protocol freezes how PACO v1.1 evaluates low-cost observability models,
-quantifies full-record uncertainty, and illustrates finite external-viewpoint
-coverage. It specifies the design before final result values are inserted into
-any manuscript. The corresponding machine-readable preregistration intent is
+This protocol records how PACO v1.1 evaluates low-cost observability models,
+quantifies full-record uncertainty, and ranks residual-demand hotspots. It also
+sets boundaries for a future illustrative finite-viewpoint extension. It
+freezes the analysis before final result values are inserted into the revised
+manuscript. It is not a preregistration: after the any-ray sparse diagnostic was
+found to be optimistic, the threshold-selection rule and deterministic split
+were added as post-development calibration with a disjoint held-out evaluation.
+The corresponding machine-readable analysis configuration is
 `configs/cacie_v1.1.json`.
 
 The high-resolution reference uses analytic ray--oriented-box (ray--OBB)
@@ -26,6 +30,16 @@ parameters, and runtime versions. A failed gate stops the analysis.
 The upstream manifest must establish an active paper-facing detector/tracker and
 verified alignment lineage. A legacy-only or alignment-ambiguous artifact cannot
 be promoted by passing only the table-shape checks.
+
+Source-frame completeness is audited from the frame index over the declared
+range. A partial scan is a frame whose point count is below 0.6 times the
+median of the available preceding and following three source rows; boundary
+frames therefore use only the neighbors that exist. Timestamp zero is
+not an exclusion criterion. The gate fails closed when any detected partial
+scan is missing from the declared exclusion list. An allowed missing track
+frame and an excluded observed partial frame are distinct: the former explains
+why an expected source frame has no tracked boxes, while the latter must be
+removed explicitly from validation and full-record selection.
 
 ## 2. Ground and vertical-coordinate design
 
@@ -55,8 +69,9 @@ that makes either representation ground truth.
 
 `scripts/validate_occlusion_models.py` draws balanced, deterministic frame
 samples with seed `20260902`. The main validation sample contains 200 frozen
-frames. A separate 25-frame sample is frozen for the higher-resolution
-convergence run. Fifteen hypothetical ego positions are used on each approach.
+frames. A 25-frame subset of those 200 frames is frozen for the
+higher-resolution convergence run; it is not an independent sample. Fifteen
+hypothetical ego positions are used on each approach.
 A pose is explicitly excluded when it lies within 4.0 m of an observed vehicle;
 exclusions and reason codes are written as an output rather than silently
 discarded.
@@ -71,9 +86,11 @@ across every requested FOV. Boxes are processed from near to far, and car/truck
 boxes update the blocking map. Coverage and occlusion reasons are mutually
 exclusive under the implementation's frozen attribution rule.
 
-The validation run also records the center/top two-ray check as a separate
-low-cost three-dimensional approximation. Neither low-cost method supplies
-reference labels.
+The validation run also records the center/top two-ray check and a 15-ray
+sparse approximation consisting of the target center, six face centers, and
+eight vertices. The frozen sparse binary rule requires at least **3 of 15**
+rays to be visible; an any-ray rule is not the primary CACIE method. No
+low-cost method supplies reference labels.
 
 ## 5. Ray--OBB hierarchy and convergence
 
@@ -85,8 +102,20 @@ The main validation sample compares these target-sampling levels:
 3. **17 x 17 projected angular grid:** intermediate comparison.
 4. **33 x 33 projected angular grid:** primary within-abstraction reference.
 
+Before reporting sparse-method accuracy, the frozen 200-frame set is divided
+once by deterministic time-by-density stratification into 100 calibration
+frames and 100 held-out frames. This split and the threshold search are a
+post-development response to the optimistic any-ray diagnostic, not a
+preregistered or prespecified analysis. Thresholds from 1 through 15 visible
+rays are evaluated only on the calibration frames. The selection criterion is
+covered-row accuracy; ties are resolved by smaller observability-ratio bias and
+then in the more conservative direction. The resulting 3/15 threshold is
+evaluated once on the untouched held-out frames and then frozen for the
+full-record computation. Calibration and held-out results must remain
+separately labeled.
+
 The frozen main command explicitly includes `--n-frames 200 --ray-grids 9 17
-33`. A separate frozen 25-frame run uses `--n-frames 25 --ray-grids 17 33 65`
+33`. A separate frozen 25-frame subset run uses `--n-frames 25 --ray-grids 17 33 65`
 to test 17 x 17/33 x 33/65 x 65 convergence. The CLI default of 17 is only a
 smoke-test default. The primary binary decision uses the 33 x 33 projected
 fraction and a visible-fraction threshold of 0.05. Sensitivity to threshold
@@ -109,23 +138,42 @@ conditional on the scene abstraction and upstream provenance.
 - `validation_config.json` with frozen parameters; and
 - `validation_summary.json` with grouped agreement and runtime summaries.
 
+`scripts/summarize_validation_strata.py` consumes the saved decisions and
+timings and emits covered-row confusion counts plus class, range, approach,
+and frame-density strata. It performs no ray tracing. These 200-frame metrics
+are descriptive repeated-decision summaries; an independence-based confidence
+interval over target/ego rows is not valid and is not reported.
+
+`scripts/calibrate_sparse_threshold.py` consumes the saved 200-frame decisions
+and writes `outputs/canonical/sparse_calibration/sparse_threshold_calibration.json`
+plus `validation_decisions_calibrated.parquet`. The JSON is authoritative for
+the calibration/held-out assignment, all 1--15 candidates, the selected
+`selected_min_visible_rays = 3`, and output checksums. The original main
+validation file retains useful ray-count and geometric evidence, but any
+pre-calibration any-ray label is not a primary sparse-method result.
+
 Agreement is stratified by method, vertical-coordinate mode, FOV, target class,
-range, and other prespecified scene factors. Runtime comparisons use the same
+range, and other declared scene factors. Runtime comparisons use the same
 sample and hardware context. No final values are specified in this protocol.
 
 ## 7. Full-record analysis and dependence-aware inference
 
 The full-record low-cost sweep is performed by
-`scripts/parametric_ego_sweep.py` only after the input gate passes. Primary
-v1.1 estimates are scene-observability quantities that do not depend on a
-conflict-event review claim.
+`scripts/compute_full_record_observability.py` only after the input gate
+passes. It streams a wide `full_record_observability.parquet` table and a long
+`observability_contributions.parquet` table in stable frame order. The
+`full_record_summary.json` file is published last and is the completion marker;
+temporary `.partial` files are not valid results. Primary v1.1 estimates are
+scene-observability quantities that do not depend on a conflict-event review
+claim.
 
 Frame-level numerator and denominator contributions are passed to
 `scripts/bootstrap_observability.py`. All ego positions within a frame are
 aggregated before resampling. The frozen bootstrap design is:
 
 - circular moving blocks;
-- 120 seconds per block, equal to 1,200 frames at 10 Hz;
+- 1,200 consecutive retained-frame observations per block, nominally 120
+  seconds at 10 Hz (source-index gaps can extend the elapsed span);
 - 5,000 replicates;
 - 95% percentile intervals; and
 - deterministic seed `20260902`.
@@ -145,13 +193,18 @@ Directory names, clip viewers, or candidate flags do not establish review.
 Without a qualifying ledger, omit human-reviewed, verified-event, and
 conflict-weighted primary claims.
 
-## 9. Residual demand and illustrative coverage
+## 9. Residual demand and future illustrative coverage
 
-`scripts/optimize_external_coverage.py` computes residual demand from onboard
-decisions and evaluates finite hypothetical external viewpoints with analytic
-ray--OBB tests. It records candidate definitions, class weights, grid settings,
-greedy marginal gains, uncovered demand, and block-bootstrap rank stability
-using seed `20260902`.
+`scripts/rank_residual_demand.py` is the current decision-layer analysis. It
+uses the ground-anchored 3/15 sparse method and reports, separately for 120 and
+360 degree FOVs, uniform residual-demand hotspot scores and VRU-weighted
+sensitivity scores. Both are ratios of summed contributions. Rank stability is
+estimated by resampling 1,200-frame intervals on the original frame axis with
+5,000 replicates and seed `20260902`.
+
+`scripts/optimize_external_coverage.py` evaluates finite hypothetical external
+viewpoints with analytic ray--OBB tests and a greedy maximum-coverage trace. It
+is an illustrative **future extension**, not a required canonical CACIE result.
 
 Candidate coordinates and budgets are illustrative scenario inputs. They are
 not surveyed sites, and the model omits important operational factors including
@@ -177,10 +230,34 @@ Before any v1.1 value appears in a paper or figure, archive:
 - the upstream and CACIE provenance manifests;
 - input and output checksums;
 - validation sample identifiers and exclusion table;
+- the calibration/held-out frame assignment, all 1--15 candidate scores, and
+  the frozen 3/15 sparse-rule decision;
 - frozen commands and configuration files;
 - validation decisions, timing records, and convergence outputs;
-- full-record frame contributions and bootstrap replicates; and
-- illustrative candidate definitions, weights, and greedy trajectory.
+- full-record frame contributions and bootstrap replicates;
+- stage-local main-validation, subset-convergence, and full-record
+  runtime-environment receipts, preserving disclosed dirty/no-Git states;
+- portable byte-lineage receipts for main validation, convergence, calibrated
+  strata, and both figures;
+- the training-isolated internal detector/box validation and its human-label,
+  model-split, overlap, and canonical-input source receipts;
+- the immutable notebook source, separately executed notebook, and
+  `notebook_audit_receipt.json`; and
+- the producing `src/paco_observability` and `scripts` files, `pyproject.toml`,
+  `uv.lock`, README, and protocol documentation.
+
+The release manifest is built only from a clean worktree. The configuration
+must declare `release.numeric_producer_commit` and
+`release.numeric_producer_files`; the commit must exist and every listed
+current numerical producer must match its Git blob byte-for-byte. The declared
+historical full-record entrypoint is independently checked against its stored
+Git blob and SHA-256. The release builder inventories and hashes all selected
+files twice before atomic output; it does not update historical provenance to
+mask a code-revision mismatch.
+
+If the future external-viewpoint scenario is reported separately, also archive
+its illustrative candidate definitions, weights, and greedy trajectory; those
+files are not prerequisites for the canonical CACIE results.
 
 The manuscript must preserve the within-abstraction, conflict-review, and
 theoretical-ceiling limitations stated above.

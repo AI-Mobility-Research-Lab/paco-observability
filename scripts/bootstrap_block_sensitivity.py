@@ -4,8 +4,10 @@
 The script reads the same long-form contribution table as
 ``bootstrap_observability.py``. Ego rows are summed within frame before any
 analysis, and every point estimate remains the ratio of sums. The default block
-durations are 30, 60, 120, and 240 seconds; all use the same seed and replicate
-count. Blocks longer than a group's available frame record are reported as
+lengths are 300, 600, 1,200, and 2,400 consecutive retained-frame observations,
+nominally 30, 60, 120, and 240 seconds at 10 Hz. Declared source-frame gaps can
+extend the source-index span. All lengths use the same seed and replicate count.
+Blocks longer than a group's available retained-frame record are reported as
 skipped and never replaced by a shorter or synthetic block.
 """
 
@@ -15,11 +17,21 @@ import argparse
 import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Sequence
+import uuid
 
 import numpy as np
 import pandas as pd
+
+from paco_observability.cacie_source_contract import (
+    attach_source_contract,
+    require_cacie_full_record_source_unchanged,
+    require_effective_frame_rate,
+    snapshot_cacie_full_record_source,
+    validate_cacie_full_record_source,
+)
 
 
 _BOOTSTRAP_SCRIPT = Path(__file__).with_name("bootstrap_observability.py")
@@ -587,8 +599,13 @@ def analyze_block_sensitivity(
         },
         "bootstrap": {
             "unit": "frame",
+            "frame_unit_semantics": "consecutive retained-frame observation",
             "method": "circular moving block" if bool(circular) else "moving block",
             "frame_rate_hz": float(frame_rate_hz),
+            "duration_interpretation": (
+                "nominal seconds computed from consecutive retained-frame observations; "
+                "declared source-frame gaps can extend the source-index span"
+            ),
             "block_durations": [
                 {"seconds": duration, "frame_count": frames}
                 for duration, frames in zip(durations, frame_counts, strict=True)
@@ -626,6 +643,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument(
+        "--source-summary",
+        type=Path,
+        required=True,
+        help="Completed full_record_summary.json that produced --input",
+    )
     parser.add_argument(
         "--output",
         "--output-json",
@@ -674,7 +697,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if not args.input.is_file():
         raise SystemExit(f"input Parquet does not exist: {args.input}")
+    source_snapshot = snapshot_cacie_full_record_source(args.input, args.source_summary)
     data = pd.read_parquet(args.input)
+    source_contract = validate_cacie_full_record_source(
+        args.input,
+        args.source_summary,
+        data,
+        source_snapshot=source_snapshot,
+        table_kind="contributions",
+        allowed_frame_steps=(1,),
+        frame_column=args.frame_column,
+        z_mode_column=args.z_mode_column,
+        fov_column=args.fov_column,
+        method_column=args.method_column,
+    )
+    require_effective_frame_rate(args.frame_rate_hz, source_contract)
     paired_fovs = None if args.no_paired_fov_delta else tuple(args.paired_fovs)
     result = analyze_block_sensitivity(
         data,
@@ -696,12 +733,25 @@ def main(argv: Sequence[str] | None = None) -> None:
         denominator_column=args.denominator_column,
     )
     result["input_parquet"] = str(args.input.resolve())
+    attach_source_contract(result, source_contract)
     result["output_json"] = str(args.output.resolve())
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
+    temporary_output = args.output.with_name(
+        f".{args.output.name}.{uuid.uuid4().hex}.tmp"
     )
+    try:
+        temporary_output.write_text(
+            json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
+        require_cacie_full_record_source_unchanged(
+            source_snapshot,
+            args.input,
+            args.source_summary,
+        )
+        os.replace(temporary_output, args.output)
+    finally:
+        temporary_output.unlink(missing_ok=True)
     print(f"wrote {args.output}")
 
 

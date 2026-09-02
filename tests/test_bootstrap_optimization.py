@@ -135,7 +135,9 @@ def test_group_estimate_is_ratio_of_sums_not_mean_of_frame_ratios() -> None:
     assert summary["groups"][0]["estimate"] != pytest.approx(0.5)
 
 
-def test_cli_writes_explicit_metadata_and_per_replicate_parquet(tmp_path) -> None:
+def test_cli_writes_explicit_metadata_and_per_replicate_parquet(
+    tmp_path, stub_cacie_source_validator
+) -> None:
     rows: list[dict[str, object]] = []
     for frame in range(4):
         for ego in range(2):
@@ -162,13 +164,18 @@ def test_cli_writes_explicit_metadata_and_per_replicate_parquet(tmp_path) -> Non
                 }
             )
     input_path = tmp_path / "ego_frames.parquet"
+    source_summary_path = tmp_path / "full_record_summary.json"
     out_dir = tmp_path / "bootstrap"
     pd.DataFrame(rows).to_parquet(input_path, index=False)
+    source_summary_path.write_text("{}\n", encoding="utf-8")
+    stub_cacie_source_validator(_SCRIPT)
 
     main(
         [
             "--input",
             str(input_path),
+            "--source-summary",
+            str(source_summary_path),
             "--out-dir",
             str(out_dir),
             "--block-seconds",
@@ -183,6 +190,8 @@ def test_cli_writes_explicit_metadata_and_per_replicate_parquet(tmp_path) -> Non
     summary = json.loads((out_dir / "observability_bootstrap.json").read_text())
     draws = pd.read_parquet(out_dir / "observability_bootstrap_replicates.parquet")
     assert summary["bootstrap"]["block_frame_count"] == 2
+    assert summary["source_summary_sha256"] == "b" * 64
+    assert summary["source_contract"]["frame_selection"]["exact_frame_set_validated"] is True
     assert summary["estimand"]["formula"] == "sum(numerator) / sum(denominator)"
     assert summary["paired_fov_contrast"]["delta_definition"] == "fov_b - fov_a"
     assert summary["paired_fov_contrast"]["delta_direction"] == "360 - 120"

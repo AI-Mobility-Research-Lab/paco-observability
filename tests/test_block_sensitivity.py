@@ -169,7 +169,9 @@ def test_relative_changes_are_not_fabricated_when_reference_block_is_skipped() -
     assert reference["relative_change_status"] == "current_block_skipped"
 
 
-def test_cli_writes_one_json_with_paired_delta_and_reference_changes(tmp_path) -> None:
+def test_cli_writes_one_json_with_paired_delta_and_reference_changes(
+    tmp_path, stub_cacie_source_validator
+) -> None:
     rows: list[dict[str, object]] = []
     numerator_120 = [0, 1, 0, 1]
     numerator_360 = [1, 2, 1, 2]
@@ -186,13 +188,18 @@ def test_cli_writes_one_json_with_paired_delta_and_reference_changes(tmp_path) -
                 }
             )
     input_path = tmp_path / "contributions.parquet"
+    source_summary_path = tmp_path / "full_record_summary.json"
     output_path = tmp_path / "result" / "block_sensitivity.json"
     pd.DataFrame(rows).to_parquet(input_path, index=False)
+    source_summary_path.write_text("{}\n", encoding="utf-8")
+    stub_cacie_source_validator(_SCRIPT)
 
     main(
         [
             "--input",
             str(input_path),
+            "--source-summary",
+            str(source_summary_path),
             "--output",
             str(output_path),
             "--block-seconds",
@@ -211,6 +218,8 @@ def test_cli_writes_one_json_with_paired_delta_and_reference_changes(tmp_path) -
     )
 
     result = json.loads(output_path.read_text())
+    assert result["input_parquet_sha256"] == "a" * 64
+    assert result["sparse_min_visible_rays"] == 3
     assert result["bootstrap"]["overlong_block_policy"].startswith("skip and report")
     assert result["bootstrap"]["reference_block_seconds"] == pytest.approx(0.2)
     paired = result["paired_fov_deltas"][0]
