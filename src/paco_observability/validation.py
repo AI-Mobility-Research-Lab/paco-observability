@@ -49,6 +49,7 @@ class ValidationConfig:
     angular_resolution_deg: float = 0.25
     occlusion_clearance_m: float = 0.0
     visible_fraction_threshold: float = 0.05
+    sparse_min_visible_rays: int = 3
     ray_grids: tuple[int, ...] = (17,)
     z_modes: tuple[str, ...] = ("raw", "ground_anchored")
     occluder_classes: frozenset[str] = frozenset({"car", "truck"})
@@ -62,6 +63,12 @@ class ValidationConfig:
             raise ValueError("sensor height must be positive and clearance nonnegative")
         if not 0 <= self.visible_fraction_threshold <= 1:
             raise ValueError("visible_fraction_threshold must be in [0, 1]")
+        if (
+            isinstance(self.sparse_min_visible_rays, bool)
+            or int(self.sparse_min_visible_rays) != self.sparse_min_visible_rays
+            or not 1 <= self.sparse_min_visible_rays <= 15
+        ):
+            raise ValueError("sparse_min_visible_rays must be an integer in [1, 15]")
         if not self.ray_grids or any(int(value) != value or value < 1 for value in self.ray_grids):
             raise ValueError("ray_grids must contain positive integers")
         if any(value not in {"raw", "ground_anchored"} for value in self.z_modes):
@@ -390,7 +397,14 @@ def evaluate_frame(
                         and visible_at_fraction(exact_fraction, config.visible_fraction_threshold)
                     )
                     low_cost_visible = bool(flags.covered and low_cost is not None and low_cost.visible)
-                    sparse_visible = bool(flags.covered and sparse is not None and sparse.visible)
+                    sparse_visible = bool(
+                        flags.covered
+                        and sparse is not None
+                        and sparse.visible_rays >= config.sparse_min_visible_rays
+                    )
+                    sparse_visible_any = bool(
+                        flags.covered and sparse is not None and sparse.visible_rays >= 1
+                    )
                     row: dict[str, Any] = {
                         "frame_idx": frame_idx,
                         "ego_id": pose.ego_id,
@@ -418,7 +432,12 @@ def evaluate_frame(
                         if low_cost is not None
                         else None,
                         "sparse_multiray_visible": sparse_visible,
+                        "sparse_multiray_visible_any": sparse_visible_any,
                         "sparse_multiray_fraction": sparse.score if sparse is not None else 0.0,
+                        "sparse_multiray_visible_rays": (
+                            sparse.visible_rays if sparse is not None else 0
+                        ),
+                        "sparse_multiray_min_visible_rays": config.sparse_min_visible_rays,
                         "sparse_multiray_occluded_by": sparse.nearest_blocker
                         if sparse is not None
                         else None,

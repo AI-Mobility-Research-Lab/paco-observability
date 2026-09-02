@@ -69,6 +69,17 @@ def test_frame_counts_partition_visibility_and_weighted_residual() -> None:
     assert all(row["denominator"] == 2 for row in long_rows)
 
 
+def test_full_record_sparse_threshold_is_validated_and_serialized() -> None:
+    config = FullRecordConfig(sparse_min_visible_rays=3)
+    from paco_observability.full_record import config_as_dict
+
+    serialized = config_as_dict(config)
+    assert serialized["sparse_min_visible_rays"] == 3
+    assert "at least 3 of 15" in serialized["method_definitions"]["sparse_multiray"]
+    with pytest.raises(ValueError, match="sparse_min_visible_rays"):
+        FullRecordConfig(sparse_min_visible_rays=0)
+
+
 def test_ego_vehicle_clearance_is_an_explicit_exclusion() -> None:
     result = evaluate_frame_counts(
         scene(),

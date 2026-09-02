@@ -73,3 +73,15 @@ def test_sparse_surrogate_has_center_six_faces_and_eight_vertices() -> None:
     points = sparse_target_points(OrientedBox(center=(0, 0, 0), size=(4, 2, 2)))
     assert len(points) == 15
     assert set(("center", "face_top", "face_bottom")).issubset(points)
+
+
+def test_sparse_min_visible_rays_is_bounded_by_sampler_size() -> None:
+    ValidationConfig(sparse_min_visible_rays=1)
+    ValidationConfig(sparse_min_visible_rays=15)
+    for invalid in (0, 16, 1.5, True):
+        try:
+            ValidationConfig(sparse_min_visible_rays=invalid)
+        except ValueError:
+            pass
+        else:  # pragma: no cover - clearer failure than a parametrized constructor error
+            raise AssertionError(f"accepted invalid sparse threshold: {invalid!r}")

@@ -265,6 +265,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sensor-height-m", type=float, default=1.8)
     parser.add_argument("--ego-clearance-m", type=float, default=4.0)
     parser.add_argument("--occlusion-clearance-m", type=float, default=0.0)
+    parser.add_argument(
+        "--sparse-min-visible-rays",
+        type=int,
+        default=3,
+        help=(
+            "Minimum clear rays among the 15-point sparse sampler; canonical calibrated "
+            "value is 3."
+        ),
+    )
     parser.add_argument("--vru-weight", type=float, default=3.0)
     parser.add_argument("--non-vru-weight", type=float, default=1.0)
     parser.add_argument(
@@ -298,6 +307,7 @@ def _schema_with_run_metadata(
     excluded_frames: Sequence[int],
     only_frames: Sequence[int],
     exclusion_reason: str,
+    sparse_min_visible_rays: int,
 ) -> pa.Schema:
     """Attach the frame-quality contract directly to a Parquet schema."""
 
@@ -310,6 +320,7 @@ def _schema_with_run_metadata(
         "paco.quality_excluded_frames": json.dumps(list(excluded_frames)),
         "paco.only_frames_requested": json.dumps(list(only_frames)),
         "paco.frame_exclusion_reason": exclusion_reason,
+        "paco.sparse_min_visible_rays": str(int(sparse_min_visible_rays)),
     }
     metadata.update({key.encode(): value.encode() for key, value in values.items()})
     return schema.with_metadata(metadata)
@@ -362,6 +373,7 @@ def main() -> None:
         ego_clearance_m=args.ego_clearance_m,
         angular_resolution_deg=0.25,
         occlusion_clearance_m=args.occlusion_clearance_m,
+        sparse_min_visible_rays=args.sparse_min_visible_rays,
         vru_classes=frozenset(args.vru_classes),
         non_vru_weight=args.non_vru_weight,
         vru_weight=args.vru_weight,
@@ -418,6 +430,7 @@ def main() -> None:
         "excluded_frames": excluded_requested,
         "only_frames": only_requested,
         "exclusion_reason": str(args.frame_exclusion_reason),
+        "sparse_min_visible_rays": int(config.sparse_min_visible_rays),
     }
     started = time.perf_counter()
     summary_accumulator = FullRecordSummaryAccumulator()

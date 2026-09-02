@@ -48,6 +48,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--angular-resolution-deg", type=float, default=0.25)
     parser.add_argument("--occlusion-clearance-m", type=float, default=0.0)
     parser.add_argument("--visible-fraction-threshold", type=float, default=0.05)
+    parser.add_argument(
+        "--sparse-min-visible-rays",
+        type=int,
+        default=3,
+        help=(
+            "Minimum clear rays among the 15-point sparse sampler. The canonical value "
+            "3 was selected on a disjoint 100-frame calibration subset."
+        ),
+    )
     parser.add_argument("--ray-grids", type=int, nargs="+", default=[17])
     parser.add_argument(
         "--z-modes", choices=["raw", "ground_anchored"], nargs="+", default=["raw", "ground_anchored"]
@@ -100,6 +109,7 @@ def main() -> None:
         angular_resolution_deg=args.angular_resolution_deg,
         occlusion_clearance_m=args.occlusion_clearance_m,
         visible_fraction_threshold=args.visible_fraction_threshold,
+        sparse_min_visible_rays=args.sparse_min_visible_rays,
         ray_grids=tuple(sorted(set(args.ray_grids))),
         z_modes=tuple(args.z_modes),
     )

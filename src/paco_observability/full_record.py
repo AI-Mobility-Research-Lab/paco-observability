@@ -13,8 +13,10 @@ Three methods are reported side by side:
     The inexpensive center/top two-ray 3D approximation.
 ``sparse_multiray``
     A 15-ray approximation using the box center, six face centers, and eight
-    vertices.  It is included because two rays can under-resolve
-    ground-anchored boxes.
+    vertices.  The canonical decision requires at least three clear rays, a
+    threshold selected on a disjoint calibration subset because an any-ray
+    rule was measurably optimistic.  It is included because two rays can
+    under-resolve ground-anchored boxes.
 
 No near-miss labels, ideal infrastructure coverage, or ``V2I = 1`` assumption
 enters this computation.
@@ -162,6 +164,7 @@ class FullRecordConfig:
     ego_clearance_m: float = 4.0
     angular_resolution_deg: float = 0.25
     occlusion_clearance_m: float = 0.0
+    sparse_min_visible_rays: int = 3
     occluder_classes: frozenset[str] = frozenset({"car", "truck"})
     vru_classes: frozenset[str] = frozenset({"bicycle", "pedestrian"})
     non_vru_weight: float = 1.0
@@ -192,6 +195,12 @@ class FullRecordConfig:
             raise ValueError("the full-record legacy comparison fixes resolution at 0.25 degrees")
         if not math.isfinite(self.occlusion_clearance_m) or self.occlusion_clearance_m < 0:
             raise ValueError("occlusion_clearance_m must be nonnegative and finite")
+        if (
+            isinstance(self.sparse_min_visible_rays, bool)
+            or int(self.sparse_min_visible_rays) != self.sparse_min_visible_rays
+            or not 1 <= self.sparse_min_visible_rays <= 15
+        ):
+            raise ValueError("sparse_min_visible_rays must be an integer in [1, 15]")
         if not math.isfinite(self.non_vru_weight) or self.non_vru_weight < 0.0:
             raise ValueError("non_vru_weight must be nonnegative and finite")
         if not math.isfinite(self.vru_weight) or self.vru_weight < 0.0:
@@ -224,7 +233,8 @@ def config_as_dict(config: FullRecordConfig) -> dict[str, Any]:
         "legacy_planar": "0.25-degree angular-wedge center classification",
         "center_top": "center and top-center rays; visible if either is clear",
         "sparse_multiray": (
-            "center, six face centers, and eight vertices; visible if any ray is clear"
+            "center, six face centers, and eight vertices; visible when at least "
+            f"{config.sparse_min_visible_rays} of 15 rays are clear"
         ),
     }
     values["residual_demand_policy"] = (
@@ -606,7 +616,11 @@ def _evaluate_frame_records(
                     center_top_visible = bool(
                         flags.covered and center_top is not None and center_top.visible
                     )
-                    sparse_visible = bool(flags.covered and sparse is not None and sparse.visible)
+                    sparse_visible = bool(
+                        flags.covered
+                        and sparse is not None
+                        and sparse.visible_rays >= config.sparse_min_visible_rays
+                    )
                     if legacy_visible:
                         entry["legacy_visible_count"] += 1
                     else:
