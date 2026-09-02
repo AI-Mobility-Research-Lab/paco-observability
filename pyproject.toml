@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paco-observability"
-version = "1.0.0"
-description = "Parametric Assessment of Cooperative Observability"
+version = "1.1.0.dev0"
+description = "Geometry-based auditing and validation of cooperative observability"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -16,8 +16,8 @@ authors = [
 dependencies = [
   "matplotlib>=3.8,<4",
   "numpy>=1.26,<3",
-  "pandas>=2.1,<3",
-  "pyarrow>=14,<22"
+  "pandas>=2.1,<4",
+  "pyarrow>=14,<24"
 ]
 
 [project.optional-dependencies]
@@ -28,9 +28,13 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.setuptools]
-py-modules = []
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.ruff]
 target-version = "py310"

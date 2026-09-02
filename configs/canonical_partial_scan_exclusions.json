@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "run_id": "run-cacie-canonical-full-20260902",
+  "frame_index_sha256": "bba857305d36b6a1833a1f89d91d520bade77ac4b02b1577fd8960558c88cfd4",
+  "detection_policy": {
+    "metric": "num_points divided by median num_points of adjacent rows, excluding the current frame",
+    "neighbor_radius_frames": 3,
+    "point_count_ratio_threshold": 0.6,
+    "comparison": "strictly less than",
+    "timestamp_zero_is_not_an_exclusion_criterion": true
+  },
+  "partial_scans": [
+    {"frame_idx": 6674, "num_points": 52396, "neighbor_median_points": 117230.5, "point_count_ratio": 0.44694853301828447},
+    {"frame_idx": 6675, "num_points": 5998, "neighbor_median_points": 117196.5, "point_count_ratio": 0.05117900278591937},
+    {"frame_idx": 6747, "num_points": 44488, "neighbor_median_points": 116923.0, "point_count_ratio": 0.38048972400639736},
+    {"frame_idx": 7025, "num_points": 36319, "neighbor_median_points": 117508.5, "point_count_ratio": 0.309075513686244},
+    {"frame_idx": 7435, "num_points": 67923, "neighbor_median_points": 117257.0, "point_count_ratio": 0.5792660566106927},
+    {"frame_idx": 11077, "num_points": 28242, "neighbor_median_points": 117614.0, "point_count_ratio": 0.24012447497746867},
+    {"frame_idx": 11155, "num_points": 49203, "neighbor_median_points": 117470.0, "point_count_ratio": 0.4188558780965353},
+    {"frame_idx": 11166, "num_points": 24667, "neighbor_median_points": 117371.0, "point_count_ratio": 0.21016264665036508},
+    {"frame_idx": 11178, "num_points": 12574, "neighbor_median_points": 117282.5, "point_count_ratio": 0.10721122077036216},
+    {"frame_idx": 11189, "num_points": 23620, "neighbor_median_points": 117480.0, "point_count_ratio": 0.2010554988083078},
+    {"frame_idx": 11201, "num_points": 14538, "neighbor_median_points": 117300.5, "point_count_ratio": 0.12393809063047471},
+    {"frame_idx": 11212, "num_points": 56181, "neighbor_median_points": 117308.5, "point_count_ratio": 0.4789167025407366},
+    {"frame_idx": 11213, "num_points": 43657, "neighbor_median_points": 117326.5, "point_count_ratio": 0.37209837504741045},
+    {"frame_idx": 11235, "num_points": 15514, "neighbor_median_points": 117196.5, "point_count_ratio": 0.13237596685907857},
+    {"frame_idx": 11247, "num_points": 29690, "neighbor_median_points": 117495.5, "point_count_ratio": 0.2526905285734347},
+    {"frame_idx": 40795, "num_points": 21817, "neighbor_median_points": 119312.0, "point_count_ratio": 0.18285671181440258}
+  ],
+  "excluded_frame_ids": [6674, 6675, 6747, 7025, 7435, 11077, 11155, 11166, 11178, 11189, 11201, 11212, 11213, 11235, 11247, 40795]
+}

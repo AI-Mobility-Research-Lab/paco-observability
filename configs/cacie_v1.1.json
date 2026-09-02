@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "analysis_status": "pre-freeze: tracks and result hashes are populated after the canonical run",
+  "seed": 20260902,
+  "upstream": {
+    "run_id": "run-cacie-canonical-full-20260902",
+    "production_code_commit": "f3c4649e04f5f103d0006aadbabd24e4e817d95a",
+    "pcap_sha256": "d59b6972791f2a65b6aee63d9e3c290684b778de76ace396f78ccd4fd425abff",
+    "alignment_mode": "two_step_json",
+    "alignment_sha256": "c768b95134b1b99bd18b25f1cae7310b9007cb37b2b4eef6f14fac0ab99c6735",
+    "model_checkpoint_sha256": "f112b03c563768b84b8a71ad9c98a4864e52fff6b6061471b6078cc9b6b5f5a5",
+    "yaw_transform": "none",
+    "score_threshold": 0.3,
+    "tracking": {
+      "method": "sort_bev",
+      "reference": "center",
+      "max_distance_m": 6.0,
+      "max_age_frames": 3
+    },
+    "tracks_sha256": "f8f4e3adc69d54c3c08adfebd5040beef154a50c885df211d5779dc68c20e8b6",
+    "frame_index_sha256": "bba857305d36b6a1833a1f89d91d520bade77ac4b02b1577fd8960558c88cfd4",
+    "source_frame_range": [1, 40795],
+    "tracked_rows": 460031,
+    "tracked_frames": 40794
+  },
+  "source_quality_exclusions": {
+    "policy": "num_points / median(num_points in the preceding and following 3 frames) < 0.6",
+    "timestamp_zero_is_not_an_exclusion_criterion": true,
+    "neighbor_radius_frames": 3,
+    "point_count_ratio_threshold": 0.6,
+    "partial_scan_frames": [
+      6674,
+      6675,
+      6747,
+      7025,
+      7435,
+      11077,
+      11155,
+      11166,
+      11178,
+      11189,
+      11201,
+      11212,
+      11213,
+      11235,
+      11247,
+      40795
+    ],
+    "primary_analysis": "exclude all listed frames before sampling or aggregation",
+    "sensitivity_analysis": "repeat full-record aggregate with partial frames included"
+  },
+  "ground_plane": {
+    "equation": "normal dot point + d = 0",
+    "normal": [
+      -0.0015611966,
+      -0.0601932594,
+      0.9981855209
+    ],
+    "d": 2.907646656,
+    "primary_box_z_mode": "ground_anchored",
+    "sensitivity_box_z_mode": "raw"
+  },
+  "ego_grid": {
+    "positions_per_approach": 15,
+    "sensor_forward_offset_m": 1.5,
+    "sensor_height_m": 1.8,
+    "overlap_exclusion_m": 4.0,
+    "approaches": [
+      {
+        "name": "north",
+        "start_xy": [7.0, 35.0],
+        "end_xy": [7.0, 8.0],
+        "heading_deg": -90.0
+      },
+      {
+        "name": "south",
+        "start_xy": [8.0, -15.0],
+        "end_xy": [8.0, 8.0],
+        "heading_deg": 90.0
+      },
+      {
+        "name": "east",
+        "start_xy": [35.0, 8.0],
+        "end_xy": [8.0, 8.0],
+        "heading_deg": 180.0
+      },
+      {
+        "name": "west",
+        "start_xy": [-20.0, 8.0],
+        "end_xy": [8.0, 8.0],
+        "heading_deg": 0.0
+      }
+    ]
+  },
+  "onboard_sensor": {
+    "fov_degrees": [120.0, 360.0],
+    "far_range_m": 35.0,
+    "near_blind_m": 1.5
+  },
+  "occlusion": {
+    "occluder_classes": ["car", "truck"],
+    "legacy_angular_resolution_deg": 0.25,
+    "clearance_m": 0.0,
+    "sparse_multiray": "center + 6 face centers + 8 vertices",
+    "sparse_visibility_rule": "at least one of 15 target-hitting rays is clear",
+    "reference": "analytic ray-upright-OBB intersection on a projected angular grid",
+    "reference_visible_fraction_threshold": 0.05,
+    "reference_scope_guardrail": "within the dynamic oriented-box abstraction; not physical visibility ground truth"
+  },
+  "validation": {
+    "balanced_time_density_frames": 200,
+    "primary_reference_grid": [33, 33],
+    "primary_grid_comparison": [9, 17, 33],
+    "convergence_frames": 25,
+    "convergence_grids": [17, 33, 65],
+    "visible_fraction_sensitivity": [0.0, 0.01, 0.05, 0.1]
+  },
+  "bootstrap": {
+    "frame_rate_hz": 10.0,
+    "method": "circular moving block",
+    "primary_block_seconds": 120.0,
+    "block_sensitivity_seconds": [30.0, 60.0, 120.0, 240.0],
+    "replicates": 5000,
+    "confidence_level": 0.95,
+    "estimand": "ratio of summed visible counts to summed target counts",
+    "paired_fov_delta": "360 degrees minus 120 degrees"
+  },
+  "decision_layer": {
+    "primary_output": "bootstrap-stable residual-demand ranking over ego-grid positions",
+    "vru_weights": {
+      "car": 1.0,
+      "truck": 1.0,
+      "pedestrian": 3.0,
+      "bicycle": 3.0
+    },
+    "finite_candidate_coverage_status": "illustrative only; no surveyed poles or static-scene mesh",
+    "theoretical_ceiling_guardrail": "not operational V2I performance"
+  }
+}
